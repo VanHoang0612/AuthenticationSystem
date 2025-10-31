@@ -1,7 +1,9 @@
 package com.hoang.AuthenticationSystem.controller;
 
 import com.hoang.AuthenticationSystem.dto.api.ApiResponse;
+import com.hoang.AuthenticationSystem.dto.auth.ReSendVerificationCodeRequest;
 import com.hoang.AuthenticationSystem.dto.auth.RegisterRequest;
+import com.hoang.AuthenticationSystem.dto.auth.VerifyEmailRequest;
 import com.hoang.AuthenticationSystem.enums.SuccessCode;
 import com.hoang.AuthenticationSystem.service.AuthService;
 import jakarta.validation.Valid;
@@ -21,13 +23,22 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<?>> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        SuccessCode successCode = authService.register(registerRequest);
-        return ResponseEntity.status(successCode.getHttpStatus())
-                .body(
-                        ApiResponse.builder()
-                                .code(successCode.getCode())
-                                .message(successCode.getMessage())
-                                .build()
-                );
+        authService.register(registerRequest);
+        return ResponseEntity.status(SuccessCode.REGISTER.getHttpStatus())
+                .body(ApiResponse.success(null, SuccessCode.REGISTER));
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<ApiResponse<?>> verifyEmail(@Valid @RequestBody VerifyEmailRequest verifyEmailRequest) {
+        authService.verifyEmail(verifyEmailRequest);
+        return ResponseEntity.status(SuccessCode.VERIFY_EMAIL.getHttpStatus())
+                .body(ApiResponse.success(null, SuccessCode.VERIFY_EMAIL));
+    }
+
+    @PostMapping("/resend-code")
+    public ResponseEntity<ApiResponse<?>> resendVerificationCode(@Valid @RequestBody ReSendVerificationCodeRequest request) {
+        authService.reSendVerificationCode(request);
+        return ResponseEntity.status(SuccessCode.RESEND_VERIFICATION_CODE.getHttpStatus())
+                .body(ApiResponse.success(null, SuccessCode.RESEND_VERIFICATION_CODE));
     }
 }

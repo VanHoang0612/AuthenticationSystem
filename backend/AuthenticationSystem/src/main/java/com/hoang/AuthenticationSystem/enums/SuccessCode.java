@@ -8,9 +8,10 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum SuccessCode {
 
-    REGISTER("AU1000", "Registration successful", HttpStatus.CREATED);
-
-    private final String code;
+    REGISTER("Registration successful", HttpStatus.CREATED),
+    VERIFY_EMAIL("Email verification successful", HttpStatus.OK),
+    RESEND_VERIFICATION_CODE("Verification code has been resent via email", HttpStatus.OK),
+    ;
     private final String message;
     private final HttpStatus httpStatus;
 }

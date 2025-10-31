@@ -22,11 +22,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
                 .body(
-                        ApiResponse.<Void>builder()
-                                .code(errorCode.getCode())
-                                .message(errorCode.getMessage())
-                                .errors(e.getErrors())
-                                .build()
+                        ApiResponse.failure(errorCode)
                 );
     }
 
@@ -57,6 +53,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.getHttpStatus())
                 .body(
                         ApiResponse.<Void>builder()
+                                .success(false)
                                 .code(ErrorCode.VALIDATION_FAILED.getCode())
                                 .message(ErrorCode.VALIDATION_FAILED.getMessage())
                                 .errors(errors)
@@ -82,7 +79,7 @@ public class GlobalExceptionHandler {
             if (maxValue != null) {
                 message = message.replace("{max}", maxValue.toString());
             }
-
+            message = message.replace("{field}", fieldName);
         }
 
         return message;

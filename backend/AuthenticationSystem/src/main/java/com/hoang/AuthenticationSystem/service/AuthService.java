@@ -1,9 +1,10 @@
 package com.hoang.AuthenticationSystem.service;
 
 import com.hoang.AuthenticationSystem.Exception.AppException;
+import com.hoang.AuthenticationSystem.dto.auth.ReSendVerificationCodeRequest;
 import com.hoang.AuthenticationSystem.dto.auth.RegisterRequest;
+import com.hoang.AuthenticationSystem.dto.auth.VerifyEmailRequest;
 import com.hoang.AuthenticationSystem.enums.ErrorCode;
-import com.hoang.AuthenticationSystem.enums.SuccessCode;
 import com.hoang.AuthenticationSystem.model.User;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 @Service
@@ -25,7 +27,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
-    public SuccessCode register(RegisterRequest request) {
+    public void register(RegisterRequest request) {
         List<String> errors = new ArrayList<>();
         if (userService.existsByUsername(request.getUsername()
                 .trim())) {
@@ -56,15 +58,52 @@ public class AuthService {
         try {
             userService.save(user);
             sendVerificationEmail(user);
-            return SuccessCode.REGISTER;
 
         } catch (Exception e) {
             log.error(e.getMessage());
             throw new AppException(ErrorCode.INTERNAL_SERVER, List.of(e.getMessage()));
         }
-
-
     }
+
+    public void verifyEmail(VerifyEmailRequest request) {
+        Optional<User> optionalUser = userService.findByEmail(request.getEmail());
+        if (optionalUser.isPresent()) {
+            User user = optionalUser.get();
+            if (user.getVerificationExpiresAt()
+                    .isBefore(LocalDateTime.now())) {
+                throw new AppException(ErrorCode.VERIFICATION_CODE_EXPIRED);
+            }
+            if (user.getVerificationCode()
+                    .equals(request.getVerificationCode())) {
+                user.setEnabled(true);
+                user.setVerificationCode(null);
+                user.setVerificationExpiresAt(null);
+                userService.save(user);
+            } else {
+                throw new AppException(ErrorCode.VERIFICATION_CODE_INVALID);
+            }
+        } else {
+            throw new AppException(ErrorCode.EMAIL_NOT_EXISTED);
+        }
+    }
+
+    public void reSendVerificationCode(ReSendVerificationCodeRequest request) {
+        Optional<User> optionalUser = userService.findByEmail(request.getEmail());
+        if (optionalUser.isPresent()) {
+            User user = optionalUser.get();
+            if (user.isEnabled()) {
+                throw new AppException(ErrorCode.USER_IS_ENABLED);
+            }
+            user.setVerificationCode(generateVerificationCode());
+            user.setVerificationExpiresAt(LocalDateTime.now()
+                    .plusMinutes(15));
+            sendVerificationEmail(user);
+            userService.save(user);
+        } else {
+            throw new AppException(ErrorCode.EMAIL_NOT_EXISTED);
+        }
+    }
+
 
     private String generateVerificationCode() {
         Random random = new Random();
@@ -89,7 +128,6 @@ public class AuthService {
                 + "</html>";
         try {
             emailService.sendVerificationEmail(user.getEmail(), subject, htmlMessage);
-            ;
         } catch (MessagingException e) {
             throw new RuntimeException("Failed to send verification email", e);
         }
