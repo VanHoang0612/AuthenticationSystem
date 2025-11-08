@@ -17,6 +17,15 @@ public enum ErrorCode {
     VALIDATION_FAILED("VAL101", "Information validation failed!", HttpStatus.BAD_REQUEST),
     VERIFICATION_CODE_EXPIRED("VC101", "Verification code expired!", HttpStatus.BAD_REQUEST),
     VERIFICATION_CODE_INVALID("vc102", "Verification code invalid!", HttpStatus.BAD_REQUEST),
+    TOKEN_TYPE_INVALID("T101", "Token type invalid!", HttpStatus.BAD_REQUEST),
+    TOKEN_EXPIRED("T102", "Token expired", HttpStatus.BAD_REQUEST),
+    LOGIN("A001", "The account or password is incorrect", HttpStatus.BAD_REQUEST),
+    REFRESH_TOKEN_INVALID("A102", "Refresh token invalid", HttpStatus.BAD_REQUEST),
+    ACCESS_TOKEN_INVALID("A103", "Access token invalid", HttpStatus.BAD_REQUEST),
+    NOT_FOUND_IN_COOKIES("A104", "Cookie not found in cookies", HttpStatus.BAD_REQUEST),
+    TOKEN_EXISTS("A105", "Token exists", HttpStatus.CONFLICT),
+    USER_DISABLED("A106", "The account not verified", HttpStatus.FORBIDDEN),
+    UNAUTHORIZED("UNAUTHORIZED", "UNAUTHORIZED", HttpStatus.UNAUTHORIZED),
     ;
     private final String code;
     private final String message;

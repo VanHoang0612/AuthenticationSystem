@@ -1,22 +1,29 @@
 package com.hoang.AuthenticationSystem.service;
 
 import com.hoang.AuthenticationSystem.Exception.AppException;
-import com.hoang.AuthenticationSystem.dto.auth.ReSendVerificationCodeRequest;
-import com.hoang.AuthenticationSystem.dto.auth.RegisterRequest;
-import com.hoang.AuthenticationSystem.dto.auth.VerifyEmailRequest;
+import com.hoang.AuthenticationSystem.Mapper.UserMapper;
+import com.hoang.AuthenticationSystem.dto.auth.*;
 import com.hoang.AuthenticationSystem.enums.ErrorCode;
+import com.hoang.AuthenticationSystem.model.RevokedToken;
 import com.hoang.AuthenticationSystem.model.User;
+import com.hoang.AuthenticationSystem.security.jwt.JwtService;
+import com.hoang.AuthenticationSystem.security.userDetails.CustomUserDetails;
+import com.hoang.AuthenticationSystem.utils.CookieUtils;
 import jakarta.mail.MessagingException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +33,10 @@ public class AuthService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
+    private final UserMapper userMapper;
+    private final RevokedTokenService revokedTokenService;
 
     public void register(RegisterRequest request) {
         List<String> errors = new ArrayList<>();
@@ -131,5 +142,95 @@ public class AuthService {
         } catch (MessagingException e) {
             throw new RuntimeException("Failed to send verification email", e);
         }
+    }
+
+    public AuthResponse login(LoginRequest request) {
+
+        try {
+            Authentication auth = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getUsernameOrEmail(),
+                            request.getPassword()
+                    )
+            );
+            SecurityContextHolder.getContext()
+                    .setAuthentication(auth);
+
+            CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+            User user = userDetails.getUser();
+            return AuthResponse.builder()
+                    .accessToken(jwtService.generateAccessToken(user))
+                    .refreshToken(jwtService.generateRefreshToken(user))
+                    .expiresInMS(jwtService.getAccessTokenExpiry())
+                    .user(
+                            userMapper.toUserDto(user)
+                    )
+                    .build();
+
+        } catch (BadCredentialsException e) {
+            throw new AppException(ErrorCode.LOGIN);
+        } catch (DisabledException e) {
+            throw new AppException(ErrorCode.USER_DISABLED);
+        }
+    }
+
+    public RefreshTokenResponse refreshToken(String token) {
+        if (!jwtService.isRefreshTokenValid(token)) {
+            throw new AppException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+        String username = jwtService.extractUsername(token);
+        User user = userService.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        return RefreshTokenResponse.builder()
+                .accessToken(jwtService.generateAccessToken(user))
+                .expiresInMS(jwtService.getAccessTokenExpiry())
+                .build();
+    }
+
+    public void validateAccessToken(String token) {
+        Authentication auth = SecurityContextHolder.getContext()
+                .getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            log.error("Authentication or principal is null");
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        Object principal = auth.getPrincipal();
+        log.info(principal.toString());
+        CustomUserDetails userDetails;
+        if (principal instanceof CustomUserDetails) {
+            userDetails = (CustomUserDetails) principal;
+        } else if (principal instanceof String) {
+            log.error(principal.toString());
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        } else {
+            throw new AppException(ErrorCode.ACCESS_TOKEN_INVALID);
+        }
+        if (!jwtService.isAccessTokenValid(token, userDetails)) {
+            throw new AppException(ErrorCode.ACCESS_TOKEN_INVALID);
+        }
+    }
+
+    public void logout(HttpServletRequest request) {
+        String refreshToken = CookieUtils.getCookieValue(request, "refreshToken");
+        if (refreshToken == null || !jwtService.isRefreshTokenValid(refreshToken)) {
+            throw new AppException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        UUID jti = jwtService.extractJti(refreshToken);
+        Date expiryDate = jwtService.extractExpiration(refreshToken);
+        LocalDateTime expiresAt = LocalDateTime.ofInstant(expiryDate.toInstant(), TimeZone.getDefault()
+                .toZoneId());
+        if (revokedTokenService.existsByJti(jti)) {
+            throw new AppException(ErrorCode.TOKEN_EXISTS);
+        }
+        revokedTokenService.save(
+                RevokedToken.builder()
+                        .jti(jti)
+                        .expiresAt(expiresAt)
+                        .revokedAt(LocalDateTime.now())
+                        .build()
+        );
+        SecurityContextHolder.clearContext();
+
     }
 }

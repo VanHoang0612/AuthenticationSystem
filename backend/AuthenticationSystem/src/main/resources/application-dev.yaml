@@ -21,4 +21,6 @@ spring:
 security:
   jwt:
     secret-key: ihi3voEg2Wn4O8frDbasgyDQ/WWeIk/dG1zLPpRbhy0=
-    expirationMS: 3600
+    expiration-ms:
+      access: 20000
+      refresh: 60000

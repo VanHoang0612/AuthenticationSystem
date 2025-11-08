@@ -11,7 +11,9 @@ public enum SuccessCode {
     REGISTER("Registration successful", HttpStatus.CREATED),
     VERIFY_EMAIL("Email verification successful", HttpStatus.OK),
     RESEND_VERIFICATION_CODE("Verification code has been resent via email", HttpStatus.OK),
-    ;
+    LOGIN("Login successful", HttpStatus.OK),
+    VALIDATE_TOKEN("Token is valid", HttpStatus.OK),
+    REFRESH_TOKEN("Token refreshed successfully", HttpStatus.OK);
     private final String message;
     private final HttpStatus httpStatus;
 }
